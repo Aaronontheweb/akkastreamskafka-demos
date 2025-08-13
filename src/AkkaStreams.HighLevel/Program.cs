@@ -123,7 +123,7 @@ var control = KafkaConsumer
     // Send failures to DLQ
     .SelectAsync(1, async result =>
     {
-        if (!result.Success && result.Order != null)
+        if (result is { Success: false, Order: not null })
         {
             var dlqMessage = new
             {
@@ -144,7 +144,7 @@ var control = KafkaConsumer
             Console.WriteLine($"  [{instanceId}] → DLQ: {result.Order.OrderId}");
         }
         
-        return result.Message;
+        return (ICommittable)result.Message.CommitableOffset;
     })
     // Commit offsets
     .ToMaterialized(
