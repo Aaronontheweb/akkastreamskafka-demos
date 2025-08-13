@@ -44,14 +44,13 @@ var system = host.Services.GetRequiredService<ActorSystem>();
 var materializer = system.Materializer();
 
 // Wait for producer to set up Kafka
-string bootstrapServers;
 while (!File.Exists("kafka.txt"))
 {
     Console.WriteLine("Waiting for producer to start Kafka...");
     Console.WriteLine("Please run the DataProducer first: dotnet run --project src/DataProducer");
     await Task.Delay(2000);
 }
-bootstrapServers = await File.ReadAllTextAsync("kafka.txt");
+var bootstrapServers = await File.ReadAllTextAsync("kafka.txt");
 
 Console.WriteLine("\n============================================");
 Console.WriteLine($"AKKA.STREAMS.KAFKA - INSTANCE {instanceId}");
