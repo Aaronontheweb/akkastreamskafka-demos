@@ -1,9 +1,5 @@
 <Solution>
-  <Configurations>
-    <Platform Name="Any CPU" />
-    <Platform Name="x64" />
-    <Platform Name="x86" />
-  </Configurations>
+  <Folder Name="/build/" />
   <Folder Name="/src/">
     <Project Path="src/AkkaStreams.HighLevel/AkkaStreams.HighLevel.csproj" />
     <Project Path="src/ConfluentKafka.LowLevel/ConfluentKafka.LowLevel.csproj" />

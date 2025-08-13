@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
-    <Copyright>Copyright © 2015-$([System.DateTime]::Now.Year) Akka.NET Team</Copyright>
-    <Authors>Akka.NET Team</Authors>
+    <Copyright>Copyright © 2015-$([System.DateTime]::Now.Year) Aaron Stannard</Copyright>
+    <Authors>Aaronontheweb</Authors>
     <Tags>akka, akka.streams, kafka, akkadotnet, akka streams, akka.streams.kafka</Tags>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <LangVersion>latest</LangVersion>
@@ -13,9 +13,6 @@
   <PropertyGroup>
     <!-- Visual Studio C# settings -->
     <TargetFramework>net9.0</TargetFramework>
-    <NetStandardLibVersion>netstandard2.0</NetStandardLibVersion>
-    <NetLibVersion>net6.0</NetLibVersion>
-    <NetCoreTestVersion>net9.0</NetCoreTestVersion>
   </PropertyGroup>
   <!-- GitHub SourceLink -->
   <ItemGroup>
@@ -32,7 +29,7 @@
 
 * [Updated Akka.NET to 1.5.25](https://github.com/akkadotnet/akka.net/releases/tag/1.5.25)</PackageReleaseNotes>
     <PackageTags>akka;actors;actor model;Akka;concurrency;test</PackageTags>
-    <PackageProjectUrl>https://github.com/akkadotnet/Akka.MultiNodeTestRunner</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/Aaronontheweb/akkastreamskafka-demos/</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageIcon>akkalogo.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
