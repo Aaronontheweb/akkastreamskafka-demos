@@ -100,7 +100,7 @@ var producerSettings = ProducerSettings<string, string>
 var processor = new OrderProcessor();
 
 // THE ELEGANT SOLUTION - All error handling in ~50 lines!
-var control = KafkaConsumer
+var (control, completion) = KafkaConsumer
     .CommittableSource(consumerSettings, Subscriptions.Topics(Topics.Orders))
     .SelectAsync(10, async msg =>
     {
@@ -129,7 +129,7 @@ var control = KafkaConsumer
     // Supervision strategy for automatic retry with backoff
     .WithAttributes(ActorAttributes.CreateSupervisionStrategy(ex =>
     {
-        if (ex is ProcessingException pe && pe.IsTransient)
+        if (ex is ProcessingException { IsTransient: true })
         {
             log.Info("  [{0}] 🔄 Retrying after transient error", instanceId);
             return Akka.Streams.Supervision.Directive.Restart;
@@ -139,33 +139,31 @@ var control = KafkaConsumer
     // Send failures to DLQ
     .SelectAsync(1, async result =>
     {
-        if (result is { Success: false, Order: not null })
+        if (result is not { Success: false, Order: not null }) return result.Message.CommitableOffset;
+        var dlqMessage = new
         {
-            var dlqMessage = new
-            {
-                OriginalOrder = result.Order,
-                Error = result.Error?.Message,
-                ProcessedBy = instanceId,
-                Timestamp = DateTime.UtcNow
-            };
+            OriginalOrder = result.Order,
+            Error = result.Error?.Message,
+            ProcessedBy = instanceId,
+            Timestamp = DateTime.UtcNow
+        };
             
-            var message = new ProducerRecord<string, string>(
-                Topics.DeadLetters,
-                result.Order.OrderId,
-                JsonSerializer.Serialize(dlqMessage));
+        var message = new ProducerRecord<string, string>(
+            Topics.DeadLetters,
+            result.Order.OrderId,
+            JsonSerializer.Serialize(dlqMessage));
             
-            await Source.Single(message)
-                .RunWith(KafkaProducer.PlainSink(producerSettings), materializer);
+        await Source.Single(message)
+            .RunWith(KafkaProducer.PlainSink(producerSettings), materializer);
             
-            log.Info("  [{0}] → DLQ: {1}", instanceId, result.Order.OrderId);
-        }
-        
+        log.Info("  [{0}] → DLQ: {1}", instanceId, result.Order.OrderId);
+
         return (ICommittable)result.Message.CommitableOffset;
     })
     // Commit offsets
     .ToMaterialized(
         Committer.Sink(committerSettings),
-        Keep.Left)
+        Keep.Both)
     .Run(materializer);
 
 // Handle rebalancing events elegantly
@@ -177,19 +175,32 @@ _ = control.IsShutdown.ContinueWith(t =>
         logger.LogInformation("[{InstanceId}] Stream completed gracefully", instanceId);
 });
 
-// Wait for shutdown using host lifetime
+// Setup graceful shutdown
 var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
-var done = new TaskCompletionSource<bool>();
+var shutdownTcs = new TaskCompletionSource();
 
 lifetime.ApplicationStopping.Register(() =>
 {
-    logger.LogInformation("[{InstanceId}] Shutting down gracefully...", instanceId);
-    
-    // wait for Akka.Streams to drain completely
-    control.Shutdown().GetAwaiter().GetResult();
-    done.SetResult(true);
+    _ = ShutdownAsync(); // Fire and forget
+    return;
+
+    async Task ShutdownAsync()
+    {
+        logger.LogInformation("[{InstanceId}] Shutting down gracefully...", instanceId);
+        try
+        {
+            await control.DrainAndShutdown(completion);
+            logger.LogInformation("[{InstanceId}] Stream shutdown complete", instanceId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[{InstanceId}] Error during stream shutdown", instanceId);
+        }
+        shutdownTcs.TrySetResult();
+    }
 });
 
-await done.Task;
+// Wait for shutdown
+await host.WaitForShutdownAsync();
 
 logger.LogInformation("[{InstanceId}] ✓ Consumer stopped gracefully", instanceId);

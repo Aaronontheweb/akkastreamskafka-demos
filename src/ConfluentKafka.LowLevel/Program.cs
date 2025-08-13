@@ -52,7 +52,7 @@ logger.LogInformation("   dotnet run 2  (second instance)");
 logger.LogInformation("   dotnet run 3  (third instance)");
 logger.LogInformation("Press Ctrl+C to stop...");
 
-// Start the complex consumer
+// Start the consumer
 var consumer = new ManualErrorHandlingConsumer(bootstrapServers, instanceId, logger);
 await consumer.StartAsync(cts.Token);
 
@@ -305,7 +305,6 @@ public class ManualErrorHandlingConsumer
                     _instanceId, attempt, order.OrderId, ex.Message);
                 _logger.LogWarning("  [{InstanceId}] 🔄 Initiating retry with exponential backoff...", _instanceId);
                 _logger.LogDebug("  [{InstanceId}] Stack trace: {StackTrace}", _instanceId, ex.StackTrace);
-                continue;
             }
             catch (Exception ex)
             {
