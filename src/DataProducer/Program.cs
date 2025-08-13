@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Akka;
 using Akka.Actor;
+using Akka.Configuration;
 using Akka.Streams;
 using Akka.Streams.Dsl;
 using Akka.Streams.Kafka.Dsl;
@@ -23,12 +24,25 @@ if (!KafkaHelper.CheckKafkaAvailability(bootstrapServers))
     Environment.Exit(1);
 }
 
-// Create actor system - no HOCON needed
-var system = ActorSystem.Create("ProducerSystem");
+// Create actor system with proper Kafka configuration
+var config = ConfigurationFactory.ParseString(@"
+    akka.kafka.producer {
+        kafka-clients {
+            bootstrap.servers = """"
+        }
+    }
+    
+    akka.kafka.default-dispatcher {
+        type = ""Dispatcher""
+        executor = ""default-executor""
+    }
+");
+
+var system = ActorSystem.Create("ProducerSystem", config);
 
 // Configure producer settings
 var producerSettings = ProducerSettings<string, string>
-    .Create(Serializers.Utf8, Serializers.Utf8)
+    .Create(system, Serializers.Utf8, Serializers.Utf8)
     .WithBootstrapServers(bootstrapServers);
 
 // Generate and produce orders
