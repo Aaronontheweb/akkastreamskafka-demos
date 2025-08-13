@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Akka;
 using Akka.Actor;
 using Akka.Streams;
@@ -13,29 +13,22 @@ Console.WriteLine("===========================================");
 Console.WriteLine("AKKA.STREAMS.KAFKA PRODUCER");
 Console.WriteLine("===========================================");
 
-// Setup Kafka with Testcontainers
-var kafkaSetup = new KafkaSetup();
-await kafkaSetup.StartAsync();
-var bootstrapServers = kafkaSetup.BootstrapServers;
+// Simple bootstrap servers - either local or from environment variable
+var bootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092";
+Console.WriteLine($"Using Kafka at: {bootstrapServers}");
 
-// Save bootstrap servers for consumers
-await File.WriteAllTextAsync("kafka.txt", bootstrapServers);
+// Check if Kafka is available
+if (!KafkaHelper.CheckKafkaAvailability(bootstrapServers))
+{
+    Environment.Exit(1);
+}
 
-Console.WriteLine($"Kafka started at: {bootstrapServers}");
-
-// Create actor system with minimal config
-var config = Akka.Configuration.ConfigurationFactory.ParseString(@"
-    akka.kafka.producer {
-        kafka-clients {
-            bootstrap.servers = """"
-        }
-    }
-");
-var system = ActorSystem.Create("ProducerSystem", config);
+// Create actor system - no HOCON needed
+var system = ActorSystem.Create("ProducerSystem");
 
 // Configure producer settings
 var producerSettings = ProducerSettings<string, string>
-    .Create(system, Serializers.Utf8, Serializers.Utf8)
+    .Create(Serializers.Utf8, Serializers.Utf8)
     .WithBootstrapServers(bootstrapServers);
 
 // Generate and produce orders
@@ -73,19 +66,6 @@ Console.WriteLine($"   - Normal orders: {orders.Count(o => !o.OrderId.StartsWith
 Console.WriteLine($"   - Poison messages: {orders.Count(o => o.OrderId.StartsWith("POISON"))}");
 Console.WriteLine($"   - Transient failures: {orders.Count(o => o.OrderId.StartsWith("TRANSIENT"))}");
 
-Console.WriteLine("\n✓ Producer completed. Kafka is running in the background.");
-Console.WriteLine("  Consumers can now connect using the bootstrap servers in kafka.txt");
-Console.WriteLine("\nPress Ctrl+C to stop Kafka and exit...");
+Console.WriteLine("\n✓ Producer completed.");
 
-Console.CancelKeyPress += async (_, e) =>
-{
-    e.Cancel = true;
-    Console.WriteLine("\nShutting down...");
-    await system.Terminate();
-    await kafkaSetup.DisposeAsync();
-    File.Delete("kafka.txt");
-    Environment.Exit(0);
-};
-
-// Keep running to keep Kafka alive
-await Task.Delay(Timeout.Infinite);
+await system.Terminate();

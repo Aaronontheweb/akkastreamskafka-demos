@@ -13,21 +13,34 @@ This repository demonstrates the dramatic difference in complexity between using
 
 ### Prerequisites
 - .NET 9.0 SDK
-- Docker Desktop (for Testcontainers)
+- Docker & Docker Compose
+
+### Setup Kafka
+
+Start Kafka using Docker Compose:
+```bash
+docker-compose up -d
+```
 
 ### Running the Demos
 
 #### Option 1: Side-by-Side Comparison (Recommended)
 
-Open three terminal windows:
+Open four terminal windows:
 
-**Terminal 1 - Confluent.Kafka (Manual Approach):**
+**Terminal 1 - Generate Test Data:**
+```bash
+cd src/DataProducer
+dotnet run
+```
+
+**Terminal 2 - Confluent.Kafka (Manual Approach):**
 ```bash
 cd src/ConfluentKafka.LowLevel
 dotnet run 1
 ```
 
-**Terminal 2 - Akka.Streams.Kafka (Elegant Approach):**
+**Terminal 3 - Akka.Streams.Kafka (Elegant Approach):**
 ```bash
 cd src/AkkaStreams.HighLevel
 dotnet run 1
