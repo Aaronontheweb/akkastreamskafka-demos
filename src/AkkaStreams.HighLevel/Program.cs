@@ -39,9 +39,8 @@ var host = new HostBuilder()
                 configBuilder.AddLoggerFactory();
             });
             
-            builder.AddHocon(
-                ConfigurationFactory.FromResource<ConsumerSettings<object, object>>(
-                    "Akka.Streams.Kafka.reference.conf"), HoconAddMode.Append);
+            // Use KafkaExtensions.DefaultSettings for cleaner configuration
+            builder.AddHocon(KafkaExtensions.DefaultSettings, HoconAddMode.Append);
         });
     })
     .Build();

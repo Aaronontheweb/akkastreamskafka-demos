@@ -197,7 +197,11 @@ public class ManualErrorHandlingConsumer
                         _instanceId, consumeResult.Partition.Value, order.OrderId);
                     
                     // Process with complex error handling
+                    _logger.LogDebug("[{InstanceId}:P{Partition}] Acquiring processing semaphore (current count: {Count}/10)", 
+                        _instanceId, consumeResult.Partition.Value, 10 - _processingThrottle.CurrentCount);
                     await _processingThrottle.WaitAsync(cancellationToken);
+                    _logger.LogDebug("[{InstanceId}:P{Partition}] Semaphore acquired, spawning processing task", 
+                        _instanceId, consumeResult.Partition.Value);
                     
                     var task = Task.Run(async () =>
                     {
@@ -244,9 +248,12 @@ public class ManualErrorHandlingConsumer
                 if (attempt > 1)
                 {
                     var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1));
-                    _logger.LogInformation("  [{InstanceId}] Retry {Attempt} for {OrderId} after {Delay}s", 
+                    _logger.LogWarning("  [{InstanceId}] 🔄 RETRY ATTEMPT {Attempt}/3 for {OrderId} after {Delay}s backoff", 
                         _instanceId, attempt, order.OrderId, delay.TotalSeconds);
+                    _logger.LogInformation("  [{InstanceId}] ⏱️ Waiting {Delay}s before retry (thread blocked)...", 
+                        _instanceId, delay.TotalSeconds);
                     await Task.Delay(delay);
+                    _logger.LogInformation("  [{InstanceId}] ▶️ Resuming processing after backoff", _instanceId);
                 }
                 
                 var result = await _processor.ProcessOrderAsync(order);
@@ -258,14 +265,25 @@ public class ManualErrorHandlingConsumer
                     var tp = new TopicPartition(consumeResult.Topic, consumeResult.Partition);
                     _pendingOffsets[tp] = consumeResult.Offset + 1;
                     
+                    _logger.LogDebug("  [{InstanceId}] 🔒 Acquired offset lock for partition {Partition}", 
+                        _instanceId, consumeResult.Partition.Value);
+                    
                     try
                     {
                         consumer.Commit(_pendingOffsets.Select(kv => 
                             new TopicPartitionOffset(kv.Key, kv.Value)));
+                        _logger.LogDebug("  [{InstanceId}] ✓ Committed offset {Offset} for partition {Partition}", 
+                            _instanceId, consumeResult.Offset.Value, consumeResult.Partition.Value);
                     }
                     catch (KafkaException ex)
                     {
-                        _logger.LogError(ex, "[{InstanceId}] Commit failed", _instanceId);
+                        _logger.LogError(ex, "[{InstanceId}] ❌ COMMIT FAILED - POTENTIAL MESSAGE LOSS OR DUPLICATION for offset {Offset}, partition {Partition}", 
+                            _instanceId, consumeResult.Offset.Value, consumeResult.Partition.Value);
+                        _logger.LogError("  [{InstanceId}] ⚠️ Manual intervention may be required to recover from this state", _instanceId);
+                    }
+                    finally
+                    {
+                        _logger.LogDebug("  [{InstanceId}] 🔓 Released offset lock", _instanceId);
                     }
                 }
                 
@@ -274,23 +292,38 @@ public class ManualErrorHandlingConsumer
             }
             catch (PoisonMessageException ex)
             {
-                _logger.LogWarning("  [{InstanceId}] 🚫 POISON: {OrderId}", _instanceId, order.OrderId);
+                _logger.LogError(ex, "  [{InstanceId}] 🚫 POISON MESSAGE DETECTED: {OrderId}", _instanceId, order.OrderId);
+                _logger.LogError("  [{InstanceId}] 💀 Moving to DLQ immediately - no retry for poison messages", _instanceId);
+                _logger.LogWarning("  [{InstanceId}] ⚠️ This message will never be processed successfully", _instanceId);
                 _deadLetterQueue.Enqueue((order, attempt, ex));
                 CommitOffsetSafely(consumer, consumeResult);
                 return;
             }
             catch (ProcessingException ex) when (ex.IsTransient && attempt < 3)
             {
-                _logger.LogWarning("  [{InstanceId}] ⚠️ Transient failure attempt {Attempt}", _instanceId, attempt);
+                _logger.LogWarning(ex, "  [{InstanceId}] ⚠️ TRANSIENT ERROR on attempt {Attempt}/3 for {OrderId}: {Message}", 
+                    _instanceId, attempt, order.OrderId, ex.Message);
+                _logger.LogWarning("  [{InstanceId}] 🔄 Initiating retry with exponential backoff...", _instanceId);
+                _logger.LogDebug("  [{InstanceId}] Stack trace: {StackTrace}", _instanceId, ex.StackTrace);
                 continue;
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "  [{InstanceId}] ❌ UNEXPECTED ERROR on attempt {Attempt}/3 for {OrderId}", 
+                    _instanceId, attempt, order.OrderId);
+                
                 if (attempt == 3)
                 {
-                    _logger.LogError(ex, "  [{InstanceId}] ❌ Failed after 3 attempts", _instanceId);
+                    _logger.LogError("  [{InstanceId}] 💀 GIVING UP after 3 attempts - moving {OrderId} to DLQ", 
+                        _instanceId, order.OrderId);
+                    _logger.LogError("  [{InstanceId}] ⚠️ Message will be lost from main processing flow", _instanceId);
                     _deadLetterQueue.Enqueue((order, attempt, ex));
                     CommitOffsetSafely(consumer, consumeResult);
+                }
+                else
+                {
+                    _logger.LogWarning("  [{InstanceId}] Will retry {OrderId} (attempt {NextAttempt}/3)", 
+                        _instanceId, order.OrderId, attempt + 1);
                 }
             }
         }
@@ -300,11 +333,17 @@ public class ManualErrorHandlingConsumer
     {
         try
         {
+            _logger.LogDebug("[{InstanceId}] Attempting to commit offset {Offset} for partition {Partition}", 
+                _instanceId, result.Offset.Value, result.Partition.Value);
             consumer.Commit(result);
+            _logger.LogDebug("[{InstanceId}] ✓ Successfully committed offset", _instanceId);
         }
         catch (KafkaException ex)
         {
-            _logger.LogError(ex, "[{InstanceId}] Commit failed", _instanceId);
+            _logger.LogError(ex, "[{InstanceId}] ❌ COMMIT FAILED - RISK OF MESSAGE REPROCESSING on restart", _instanceId);
+            _logger.LogError("[{InstanceId}] ⚠️ Offset {Offset} for partition {Partition} was NOT committed", 
+                _instanceId, result.Offset.Value, result.Partition.Value);
+            _logger.LogError("[{InstanceId}] 🔄 This message WILL be redelivered if consumer restarts", _instanceId);
         }
     }
     
