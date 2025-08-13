@@ -31,12 +31,9 @@ var config = ConfigurationFactory.ParseString(@"
             bootstrap.servers = """"
         }
     }
-    
-    akka.kafka.default-dispatcher {
-        type = ""Dispatcher""
-        executor = ""default-executor""
-    }
-");
+")
+    .WithFallback(
+        ConfigurationFactory.FromResource<ConsumerSettings<object, object>>("Akka.Streams.Kafka.reference.conf"));
 
 var system = ActorSystem.Create("ProducerSystem", config);
 
@@ -76,7 +73,8 @@ Console.WriteLine($"\n✅ Successfully produced {orders.Count} orders in {elapse
 Console.WriteLine($"   Average: {orders.Count / elapsed.TotalSeconds:F0} orders/sec");
 
 Console.WriteLine("\n📊 Order Types Generated:");
-Console.WriteLine($"   - Normal orders: {orders.Count(o => !o.OrderId.StartsWith("POISON") && !o.OrderId.StartsWith("TRANSIENT"))}");
+Console.WriteLine(
+    $"   - Normal orders: {orders.Count(o => !o.OrderId.StartsWith("POISON") && !o.OrderId.StartsWith("TRANSIENT"))}");
 Console.WriteLine($"   - Poison messages: {orders.Count(o => o.OrderId.StartsWith("POISON"))}");
 Console.WriteLine($"   - Transient failures: {orders.Count(o => o.OrderId.StartsWith("TRANSIENT"))}");
 
