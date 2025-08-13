@@ -23,8 +23,15 @@ await File.WriteAllTextAsync("kafka.txt", bootstrapServers);
 
 Console.WriteLine($"Kafka started at: {bootstrapServers}");
 
-// Create actor system
-var system = ActorSystem.Create("ProducerSystem");
+// Create actor system with minimal config
+var config = Akka.Configuration.ConfigurationFactory.ParseString(@"
+    akka.kafka.producer {
+        kafka-clients {
+            bootstrap.servers = """"
+        }
+    }
+");
+var system = ActorSystem.Create("ProducerSystem", config);
 
 // Configure producer settings
 var producerSettings = ProducerSettings<string, string>
