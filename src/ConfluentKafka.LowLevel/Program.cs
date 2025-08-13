@@ -58,6 +58,9 @@ await consumer.StartAsync(cts.Token);
 
 logger.LogInformation("✓ Consumer stopped gracefully");
 
+// Reset terminal title
+Console.Title = "";
+
 public class ManualErrorHandlingConsumer
 {
     private readonly string _bootstrapServers;

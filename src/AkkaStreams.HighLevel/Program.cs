@@ -204,3 +204,6 @@ lifetime.ApplicationStopping.Register(() =>
 await host.WaitForShutdownAsync();
 
 logger.LogInformation("[{InstanceId}] ✓ Consumer stopped gracefully", instanceId);
+
+// Reset terminal title
+Console.Title = "";
