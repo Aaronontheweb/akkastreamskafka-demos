@@ -11,6 +11,7 @@ Console.Title = $"Confluent.Kafka Instance {instanceId}";
 // Setup simple console logging
 using var loggerFactory = LoggerFactory.Create(builder =>
 {
+    builder.AddConsole();
     builder.SetMinimumLevel(LogLevel.Information);
 });
 

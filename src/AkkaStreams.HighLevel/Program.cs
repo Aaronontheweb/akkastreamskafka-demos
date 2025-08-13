@@ -178,16 +178,18 @@ _ = control.IsShutdown.ContinueWith(t =>
         logger.LogInformation("[{InstanceId}] Stream completed gracefully", instanceId);
 });
 
-// Wait for shutdown
+// Wait for shutdown using host lifetime
+var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
 var done = new TaskCompletionSource<bool>();
-Console.CancelKeyPress += async (_, e) =>
+
+lifetime.ApplicationStopping.Register(() =>
 {
-    e.Cancel = true;
     logger.LogInformation("[{InstanceId}] Shutting down gracefully...", instanceId);
-    await control.Shutdown();
-    await host.StopAsync();
+    
+    // wait for Akka.Streams to drain completely
+    control.Shutdown().GetAwaiter().GetResult();
     done.SetResult(true);
-};
+});
 
 await done.Task;
 

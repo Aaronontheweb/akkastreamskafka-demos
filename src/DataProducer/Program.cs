@@ -75,14 +75,9 @@ var producerSettings = ProducerSettings<string, string>
 // Create data generator
 var generator = new DemoDataGenerator();
 
-// Setup cancellation
-var cts = new CancellationTokenSource();
-Console.CancelKeyPress += (_, e) =>
-{
-    e.Cancel = true;
-    logger.LogInformation("Shutting down producer...");
-    cts.Cancel();
-};
+// Setup cancellation using host lifetime
+var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+var cts = CancellationTokenSource.CreateLinkedTokenSource(lifetime.ApplicationStopping);
 
 // Run producer indefinitely with bursts every 30 seconds
 var burstNumber = 0;
