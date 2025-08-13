@@ -10,25 +10,23 @@
   <!-- App dependencies -->
   <ItemGroup>
     <!-- Akka packages -->
-    <PackageVersion Include="Akka" Version="$(AkkaVersion)"/>
-    <PackageVersion Include="Akka.Hosting" Version="$(AkkaVersion)"/>
-    <PackageVersion Include="Akka.Streams" Version="$(AkkaVersion)"/>
-    <PackageVersion Include="Akka.Streams.Kafka" Version="$(AkkaStreamsKafkaVersion)"/>
-    
+    <PackageVersion Include="Akka" Version="$(AkkaVersion)" />
+    <PackageVersion Include="Akka.Hosting" Version="$(AkkaVersion)" />
+    <PackageVersion Include="Akka.Streams" Version="$(AkkaVersion)" />
+    <PackageVersion Include="Akka.Streams.Kafka" Version="$(AkkaStreamsKafkaVersion)" />
     <!-- Confluent Kafka -->
-    <PackageVersion Include="Confluent.Kafka" Version="$(ConfluentKafkaVersion)"/>
-    
+    <PackageVersion Include="Confluent.Kafka" Version="$(ConfluentKafkaVersion)" />
     <!-- Microsoft packages -->
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="$(MicrosoftExtensionsVersion)"/>
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="$(MicrosoftExtensionsVersion)"/>
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="$(MicrosoftExtensionsVersion)"/>
-    
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageVersion Include="System.Text.Json" Version="9.0.8" />
     <!-- Testing packages -->
-    <PackageVersion Include="Testcontainers.Kafka" Version="4.1.0"/>
+    <PackageVersion Include="Testcontainers.Kafka" Version="4.1.0" />
   </ItemGroup>
   <!-- Test dependencies -->
   <!-- SourceLink support for all Akka.NET projects -->
   <ItemGroup>
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0"/>
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
   </ItemGroup>
 </Project>
