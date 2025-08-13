@@ -1,70 +1,170 @@
-# build-system-template
-Akka.NET project build system template that provides standardized build and CI/CD configuration for all Akka.NET projects.
+# Akka.Streams.Kafka vs Confluent.Kafka Demo
 
-## Build System Overview
-This repository contains our standardized build system setup that can be used across all Akka.NET projects. Here are the key components and practices we follow:
+This repository demonstrates the dramatic difference in complexity between using raw Confluent.Kafka drivers versus Akka.Streams.Kafka for building production-ready Kafka consumers in .NET.
 
-### CI/CD Configuration
-We primarily use GitHub Actions for our CI/CD pipelines, but also maintain Azure DevOps pipeline examples. You can find the configuration examples in:
-- `.github/workflows/` - GitHub Actions pipeline examples
-- `.azuredevops/` - Azure DevOps pipeline examples
+## 🎯 Key Points Demonstrated
 
-### SDK Version Management
-We use `global.json` to pin the .NET SDK version for both CI/CD environments and local development. This ensures consistent builds across all environments and developers.
+1. **Error Handling**: Retry logic, dead letter queues, poison message handling
+2. **Partition Rebalancing**: How consumer groups handle scaling
+3. **Backpressure**: Automatic flow control vs manual thread management
+4. **Code Complexity**: ~350 lines vs ~50 lines for the same functionality
 
-### .NET Tools
-We use local .NET tools to enhance our build and documentation process. The tools are configured in `.config/dotnet-tools.json` and include:
+## 🚀 Quick Start
 
-- [Incrementalist](https://github.com/petabridge/Incrementalist) (v1.0.0-beta4) - Used for determining which projects need to be rebuilt based on Git changes
-- [DocFx](https://dotnet.github.io/docfx/) (v2.78.3) - Used for generating documentation
+### Prerequisites
+- .NET 9.0 SDK
+- Docker & Docker Compose
 
-To restore these tools in your local environment, run:
-```powershell
-dotnet tool restore
+### Setup Kafka
+
+Start Kafka using Docker Compose:
+```bash
+docker-compose up -d
 ```
 
-This command is automatically executed in our CI/CD pipelines (both GitHub Actions and Azure DevOps) to ensure tools are available during builds.
+### Running the Demos
 
-### Centralized Package and Build Management
-We utilize two key MSBuild files for centralized configuration:
+#### Option 1: Side-by-Side Comparison (Recommended)
 
-1. `Directory.Packages.props` - Implements [Central Package Version Management](https://learn.microsoft.com/nuget/consume-packages/Central-Package-Management) for consistent NuGet package versions across all projects in the solution.
+Open four terminal windows:
 
-2. `Directory.Build.props` - Defines common build properties, including:
-   - Copyright and author information
-   - Source linking configuration
-   - NuGet package metadata
-   - Common compiler settings
-   - Target framework definitions
-
-### Code Coverage Configuration
-The `coverlet.runsettings` file configures code coverage collection using Coverlet, with settings for:
-- Multiple coverage report formats (JSON, Cobertura, LCOV, TeamCity, OpenCover)
-- Test assembly exclusions
-- Source linking integration
-- Performance optimizations
-
-### Release Management
-Our release process is streamlined through:
-- `RELEASE_NOTES.md` - Contains version history and release notes
-- `build.ps1` - PowerShell script that processes release notes and updates version information
-- Supporting scripts in `/scripts`:
-  - `bumpVersion.ps1` - Updates version numbers
-  - `getReleaseNotes.ps1` - Parses release notes
-
-The build system primarily relies on standard `dotnet` CLI commands, with the PowerShell scripts mainly handling release note processing and version management.
-
-### Solution Format
-We prefer the new `.slnx` XML-based solution format over the traditional `.sln` format. This requires .NET 9 SDK or later. The new format is more concise and easier to work with. You can migrate existing solutions using:
-
-```powershell
-dotnet sln migrate
+**Terminal 1 - Generate Test Data:**
+```bash
+cd src/DataProducer
+dotnet run
 ```
 
-For more information about the new `.slnx` format, see the [official announcement](https://devblogs.microsoft.com/dotnet/introducing-slnx-support-dotnet-cli/).
+**Terminal 2 - Confluent.Kafka (Manual Approach):**
+```bash
+cd src/ConfluentKafka.LowLevel
+dotnet run 1
+```
 
-## Getting Started
-1. Ensure you have the correct .NET SDK version installed (check `global.json`)
-2. Clone this repository
-3. Run `dotnet build` to verify the build system
-4. Customize the configuration files for your specific project needs
+**Terminal 3 - Akka.Streams.Kafka (Elegant Approach):**
+```bash
+cd src/AkkaStreams.HighLevel
+dotnet run 1
+```
+
+Watch the difference in:
+- Lines of code required
+- Error handling complexity
+- Rebalancing behavior
+
+#### Option 2: Test Partition Rebalancing
+
+**For Confluent.Kafka:**
+```bash
+# Terminal 1 - Start first instance (sets up Kafka)
+cd src/ConfluentKafka.LowLevel
+dotnet run 1
+
+# Terminal 2 - Add second instance
+cd src/ConfluentKafka.LowLevel
+dotnet run 2
+
+# Terminal 3 - Add third instance
+cd src/ConfluentKafka.LowLevel
+dotnet run 3
+```
+
+**For Akka.Streams.Kafka:**
+```bash
+# Terminal 1 - Start first instance (sets up Kafka)
+cd src/AkkaStreams.HighLevel
+dotnet run 1
+
+# Terminal 2 - Add second instance
+cd src/AkkaStreams.HighLevel
+dotnet run 2
+
+# Terminal 3 - Add third instance
+cd src/AkkaStreams.HighLevel
+dotnet run 3
+```
+
+## 📊 What to Observe
+
+### In Confluent.Kafka Implementation:
+- **350+ lines** of complex error handling code
+- Manual retry logic with exponential backoff
+- Thread pool management and synchronization
+- Complex partition rebalancing callbacks
+- Manual offset management with locking
+- Separate dead letter queue processing
+
+### In Akka.Streams.Kafka Implementation:
+- **~50 lines** total for the same functionality
+- Automatic retry via supervision strategies
+- Built-in backpressure and flow control
+- Transparent partition rebalancing
+- Automatic offset management
+- Integrated dead letter handling
+
+## 🔍 Test Scenarios
+
+The demo automatically generates 100 orders with:
+- **Normal orders**: Process successfully
+- **Transient failures**: Fail first 2 attempts, succeed on 3rd
+- **Poison messages**: Invalid data that goes straight to DLQ
+- **Random failures**: 10% chance of transient failure
+- **Large orders**: Require additional processing time
+
+## 📈 Key Metrics
+
+| Aspect | Confluent.Kafka | Akka.Streams.Kafka |
+|--------|-----------------|-------------------|
+| Lines of Code | ~350 | ~50 |
+| Error Handling | Manual try-catch everywhere | Supervision strategies |
+| Retry Logic | Manual implementation | Built-in with backoff |
+| Backpressure | Manual semaphores | Automatic |
+| Rebalancing | Complex callbacks | Transparent |
+| Thread Safety | Manual locking | Actor model |
+| Dead Letters | Separate queue processing | Integrated flow |
+
+## 🎥 Video Script Points
+
+1. **The Hook**: "You're writing 100s of lines for basic Kafka error handling"
+2. **The Problem**: Show the Confluent.Kafka complexity
+3. **The Solution**: Show the same thing in Akka.Streams.Kafka
+4. **The Proof**: Run both and show identical behavior
+5. **The Scaling Test**: Add instances and watch rebalancing
+6. **The Conclusion**: "Why write plumbing when you can write business logic?"
+
+## 🛠️ Architecture
+
+```
+┌─────────────────┐
+│  Kafka Topic    │
+│    (orders)     │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    │         │
+┌────▼──┐ ┌───▼───┐
+│ Manual│ │Streams│
+│Consumer│ │Consumer│
+└────┬──┘ └───┬───┘
+     │        │
+┌────▼────────▼───┐
+│  Order Processor │
+│  (Shared Logic)  │
+└────────┬─────────┘
+         │
+    ┌────▼────┐
+    │   DLQ   │
+    └─────────┘
+```
+
+## 📝 Notes
+
+- Kafka is automatically started using Testcontainers
+- First instance (run with `1`) sets up Kafka and generates data
+- Additional instances (run with `2`, `3`, etc.) connect to the same Kafka
+- Press Ctrl+C to gracefully shutdown
+
+## 🔗 Resources
+
+- [Akka.Streams.Kafka Documentation](https://github.com/akkadotnet/Akka.Streams.Kafka)
+- [Confluent.Kafka Documentation](https://docs.confluent.io/kafka-clients/dotnet/current/overview.html)
+- [Video: The Best Kafka Client in .NET](#) (Coming Soon)
