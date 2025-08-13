@@ -172,4 +172,8 @@ while (!cts.Token.IsCancellationRequested)
 }
 
 logger.LogInformation("Producer stopped");
+
+// Reset terminal title
+Console.Title = "";
+
 await host.StopAsync();
