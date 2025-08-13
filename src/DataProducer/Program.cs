@@ -9,6 +9,7 @@ using Akka.Streams.Kafka.Dsl;
 using Akka.Streams.Kafka.Messages;
 using Akka.Streams.Kafka.Settings;
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
@@ -67,6 +68,36 @@ if (!KafkaHelper.CheckKafkaAvailability(bootstrapServers))
     logger.LogError("Failed to connect to Kafka");
     await host.StopAsync();
     Environment.Exit(1);
+}
+
+// Ensure topic exists with multiple partitions for rebalancing demos
+using (var adminClient = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = bootstrapServers }).Build())
+{
+    try
+    {
+        logger.LogInformation("Creating topic '{Topic}' with 3 partitions for rebalancing demos...", Topics.Orders);
+        await adminClient.CreateTopicsAsync(new[]
+        {
+            new TopicSpecification
+            {
+                Name = Topics.Orders,
+                NumPartitions = 3,
+                ReplicationFactor = 1
+            }
+        });
+        logger.LogInformation("✓ Topic created with 3 partitions");
+    }
+    catch (CreateTopicsException ex)
+    {
+        if (ex.Results[0].Error.Code == ErrorCode.TopicAlreadyExists)
+        {
+            logger.LogInformation("Topic '{Topic}' already exists", Topics.Orders);
+        }
+        else
+        {
+            logger.LogError(ex, "Failed to create topic");
+        }
+    }
 }
 
 // Configure producer settings
