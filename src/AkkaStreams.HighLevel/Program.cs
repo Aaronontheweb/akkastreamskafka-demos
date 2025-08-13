@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Akka;
 using Akka.Actor;
+using Akka.Configuration;
+using Akka.Event;
 using Akka.Hosting;
 using Akka.Streams;
 using Akka.Streams.Dsl;
@@ -24,51 +26,61 @@ var host = new HostBuilder()
     {
         logging.ClearProviders();
         logging.AddConsole();
-        logging.SetMinimumLevel(LogLevel.Information);
+        logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Information);
     })
     .ConfigureServices((context, services) =>
     {
         services.AddAkka("KafkaSystem", builder =>
         {
-            builder.WithActors((system, registry) =>
+            // Configure Akka.NET logging to use Microsoft.Extensions.Logging
+            builder.ConfigureLoggers(configBuilder =>
             {
-                // Actor system is ready
+                configBuilder.LogLevel = Akka.Event.LogLevel.InfoLevel;
+                configBuilder.AddLoggerFactory();
             });
+            
+            builder.AddHocon(
+                ConfigurationFactory.FromResource<ConsumerSettings<object, object>>(
+                    "Akka.Streams.Kafka.reference.conf"), HoconAddMode.Append);
         });
     })
     .Build();
 
 await host.StartAsync();
 
+var logger = host.Services.GetRequiredService<ILogger<Program>>();
 var system = host.Services.GetRequiredService<ActorSystem>();
+var log = Logging.GetLogger(system, "AkkaStreamsHighLevel");
 var materializer = system.Materializer();
 
 // Simple bootstrap servers - either local or from environment variable
 var bootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092";
-Console.WriteLine($"Using Kafka at: {bootstrapServers}");
+logger.LogInformation("Using Kafka at: {BootstrapServers}", bootstrapServers);
 
 // Check if Kafka is available
 if (!KafkaHelper.CheckKafkaAvailability(bootstrapServers))
 {
+    logger.LogError("Failed to connect to Kafka");
     await host.StopAsync();
     Environment.Exit(1);
 }
 
-Console.WriteLine("\n============================================");
-Console.WriteLine($"AKKA.STREAMS.KAFKA - INSTANCE {instanceId}");
-Console.WriteLine("============================================");
-Console.WriteLine("\n✅ ELEGANT ERROR HANDLING & REBALANCING ✅\n");
-Console.WriteLine("Watch the simplicity of:");
-Console.WriteLine("- Automatic retry with supervision");
-Console.WriteLine("- Built-in dead letter handling");
-Console.WriteLine("- Automatic backpressure");
-Console.WriteLine("- Transparent offset management");
-Console.WriteLine("- Seamless partition rebalancing");
-Console.WriteLine("\n💡 TIP: Run multiple instances to see smooth rebalancing!");
-Console.WriteLine("   dotnet run 1  (first instance)");
-Console.WriteLine("   dotnet run 2  (second instance)");
-Console.WriteLine("   dotnet run 3  (third instance)");
-Console.WriteLine("\nPress Ctrl+C to stop...\n");
+logger.LogInformation("============================================");
+logger.LogInformation("AKKA.STREAMS.KAFKA - INSTANCE {InstanceId}", instanceId);
+logger.LogInformation("============================================");
+logger.LogInformation("✅ ELEGANT ERROR HANDLING & REBALANCING ✅");
+logger.LogInformation("Watch the simplicity of:");
+logger.LogInformation("- Automatic retry with supervision");
+logger.LogInformation("- Built-in dead letter handling");
+logger.LogInformation("- Automatic backpressure");
+logger.LogInformation("- Transparent offset management");
+logger.LogInformation("- Seamless partition rebalancing");
+logger.LogInformation("");
+logger.LogInformation("💡 TIP: Run multiple instances to see smooth rebalancing!");
+logger.LogInformation("   dotnet run 1  (first instance)");
+logger.LogInformation("   dotnet run 2  (second instance)");
+logger.LogInformation("   dotnet run 3  (third instance)");
+logger.LogInformation("Press Ctrl+C to stop...");
 
 // Configure Kafka consumer
 var consumerSettings = ConsumerSettings<string, string>
@@ -96,22 +108,22 @@ var control = KafkaConsumer
         try
         {
             var order = JsonSerializer.Deserialize<OrderEvent>(msg.Record.Message.Value);
-            Console.WriteLine($"[{instanceId}:P{msg.Record.Partition.Value}] Processing {order!.OrderId}");
+            log.Info("[{0}:P{1}] Processing {2}", instanceId, msg.Record.Partition.Value, order!.OrderId);
             
             // Process with automatic retry via supervision
             var result = await processor.ProcessOrderAsync(order);
-            Console.WriteLine($"  [{instanceId}] ✓ Processed {order.OrderId}");
+            log.Info("  [{0}] ✓ Processed {1}", instanceId, order.OrderId);
             
             return (Success: true, Message: msg, Order: order, Error: null as Exception);
         }
         catch (PoisonMessageException ex)
         {
-            Console.WriteLine($"  [{instanceId}] 🚫 POISON: {ex.Message}");
+            log.Warning("  [{0}] 🚫 POISON: {1}", instanceId, ex.Message);
             return (Success: false, Message: msg, Order: null as OrderEvent, Error: ex as Exception);
         }
         catch (ProcessingException ex) when (ex.IsTransient)
         {
-            Console.WriteLine($"  [{instanceId}] ⚠️ Transient error, will retry: {ex.Message}");
+            log.Warning("  [{0}] ⚠️ Transient error, will retry: {1}", instanceId, ex.Message);
             throw; // Let supervision strategy handle retry
         }
     })
@@ -119,7 +131,10 @@ var control = KafkaConsumer
     .WithAttributes(ActorAttributes.CreateSupervisionStrategy(ex =>
     {
         if (ex is ProcessingException pe && pe.IsTransient)
+        {
+            log.Info("  [{0}] 🔄 Retrying after transient error", instanceId);
             return Akka.Streams.Supervision.Directive.Restart;
+        }
         return Akka.Streams.Supervision.Directive.Stop;
     }))
     // Send failures to DLQ
@@ -143,7 +158,7 @@ var control = KafkaConsumer
             await Source.Single(message)
                 .RunWith(KafkaProducer.PlainSink(producerSettings), materializer);
             
-            Console.WriteLine($"  [{instanceId}] → DLQ: {result.Order.OrderId}");
+            log.Info("  [{0}] → DLQ: {1}", instanceId, result.Order.OrderId);
         }
         
         return (ICommittable)result.Message.CommitableOffset;
@@ -158,9 +173,9 @@ var control = KafkaConsumer
 _ = control.IsShutdown.ContinueWith(t =>
 {
     if (t.IsFaulted)
-        Console.WriteLine($"[{instanceId}] Stream failed: {t.Exception?.GetBaseException().Message}");
+        logger.LogError(t.Exception, "[{InstanceId}] Stream failed", instanceId);
     else
-        Console.WriteLine($"[{instanceId}] Stream completed gracefully");
+        logger.LogInformation("[{InstanceId}] Stream completed gracefully", instanceId);
 });
 
 // Wait for shutdown
@@ -168,7 +183,7 @@ var done = new TaskCompletionSource<bool>();
 Console.CancelKeyPress += async (_, e) =>
 {
     e.Cancel = true;
-    Console.WriteLine($"\n[{instanceId}] Shutting down gracefully...");
+    logger.LogInformation("[{InstanceId}] Shutting down gracefully...", instanceId);
     await control.Shutdown();
     await host.StopAsync();
     done.SetResult(true);
@@ -176,4 +191,4 @@ Console.CancelKeyPress += async (_, e) =>
 
 await done.Task;
 
-Console.WriteLine($"\n[{instanceId}] ✓ Consumer stopped gracefully");
+logger.LogInformation("[{InstanceId}] ✓ Consumer stopped gracefully", instanceId);
