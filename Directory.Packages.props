@@ -4,7 +4,7 @@
     <!-- Nuget package versions -->
     <AkkaVersion>1.5.46</AkkaVersion>
     <AkkaStreamsKafkaVersion>1.5.46</AkkaStreamsKafkaVersion>
-    <ConfluentKafkaVersion>2.8.0</ConfluentKafkaVersion>
+    <ConfluentKafkaVersion>2.11.0</ConfluentKafkaVersion>
     <MicrosoftExtensionsVersion>9.0.8</MicrosoftExtensionsVersion>
   </PropertyGroup>
   <!-- App dependencies -->
