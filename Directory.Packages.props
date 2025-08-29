@@ -22,7 +22,7 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="System.Text.Json" Version="9.0.8" />
     <!-- Testing packages -->
-    <PackageVersion Include="Testcontainers.Kafka" Version="4.1.0" />
+    <PackageVersion Include="Testcontainers.Kafka" Version="4.7.0" />
   </ItemGroup>
   <!-- Test dependencies -->
   <!-- SourceLink support for all Akka.NET projects -->
