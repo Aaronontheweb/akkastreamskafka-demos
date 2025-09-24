@@ -2,7 +2,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- Nuget package versions -->
-    <AkkaVersion>1.5.46</AkkaVersion>
+    <AkkaVersion>1.5.50</AkkaVersion>
     <AkkaStreamsKafkaVersion>1.5.46</AkkaStreamsKafkaVersion>
     <ConfluentKafkaVersion>2.8.0</ConfluentKafkaVersion>
     <MicrosoftExtensionsVersion>9.0.8</MicrosoftExtensionsVersion>
